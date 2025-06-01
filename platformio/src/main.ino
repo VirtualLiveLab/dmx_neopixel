@@ -1,102 +1,39 @@
 #include <esp_dmx.h>
 #include <Adafruit_NeoPixel.h>
-#include <EEPROM.h>
-#include <WiFi.h>
-#include <DNSServer.h>
-#include <AsyncTCP.h>
-#include <ESPAsyncWebServer.h>
-#include <LittleFS.h>
 
-#define SW1PIN 42
-#define SW2PIN 41
-#define SW3PIN 40
-#define SW4PIN 39
-#define SW5PIN 38
-#define SW6PIN 9
-#define SW7PIN 10
-#define SW8PIN 11
-#define SW9PIN 12
-#define MODEPIN 14
-#define LEDPIN 13
+#define SWPINS ((uint8_t[10]){10, 9, 8, 7, 6, 5, 4, 3, 2, 11})
+#define LEDPIN 1
 #define DMXPIN 44
+#define BRIGHTNESS 10
+#define LEDNUM 30
+#define LEDGRP ((int[][3]){{1, 5, 6}, {1, 30, 1}, {16, 15, 1}})
+// channelMap {{1, 5}, {6, 10}, {11, 15}, {16, 20}, {21, 25}, {26, 30}, {1, 30}, {16, 30}}
+//        dmx  |0,1,2  |3,4,5   |6,7,8    |9,10,11  |12,13,14 |15,16,17 |18,19,20|21,22,23 (+ startChannel)
 
-DNSServer dnsServer;
-AsyncWebServer server(80);
-Adafruit_NeoPixel leds(1, LEDPIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel leds(LEDNUM + 1, LEDPIN, NEO_GRB + NEO_KHZ800);
 
-class CaptiveRequestHandler : public AsyncWebHandler {
-public:
-  bool canHandle(__unused AsyncWebServerRequest *request) const override {
-    return true;
-  }
-
-  void handleRequest(AsyncWebServerRequest *request) {
-    request->redirect(String("http://") + WiFi.softAPIP().toString().c_str());
-  }
-};
-
-uint16_t startch;
-long brightness, lednum, ledgrp;
-bool configMode = false;
 dmx_port_t dmxPort = 1;
 byte data[DMX_PACKET_SIZE];
+
 bool dmxIsConnected = false;
+int channelNum;
+int **channelMap;
 
-void readSW() {
-  pinMode(SW1PIN, INPUT_PULLUP);
-  pinMode(SW2PIN, INPUT_PULLUP);
-  pinMode(SW3PIN, INPUT_PULLUP);
-  pinMode(SW4PIN, INPUT_PULLUP);
-  pinMode(SW5PIN, INPUT_PULLUP);
-  pinMode(SW6PIN, INPUT_PULLUP);
-  pinMode(SW7PIN, INPUT_PULLUP);
-  pinMode(SW8PIN, INPUT_PULLUP);
-  pinMode(SW9PIN, INPUT_PULLUP);
-  startch = 0;
-  if (!digitalRead(SW9PIN)) {
-    startch++;
-  }
-  startch <<= 1;
-  if (!digitalRead(SW8PIN)) {
-    startch++;
-  }
-  startch <<= 1;
-  if (!digitalRead(SW7PIN)) {
-    startch++;
-  }
-  startch <<= 1;
-  if (!digitalRead(SW6PIN)) {
-    startch++;
-  }
-  startch <<= 1;
-  if (!digitalRead(SW5PIN)) {
-    startch++;
-  }
-  startch <<= 1;
-  if (!digitalRead(SW4PIN)) {
-    startch++;
-  }
-  startch <<= 1;
-  if (!digitalRead(SW3PIN)) {
-    startch++;
-  }
-  startch <<= 1;
-  if (!digitalRead(SW2PIN)) {
-    startch++;
-  }
-  startch <<= 1;
-  if (!digitalRead(SW1PIN)) {
-    startch++;
+void readSW(int *startChannel) {
+  *startChannel = 0;
+  for (int i = sizeof(SWPINS) - 1; i >= 0; i--) {
+    if (!digitalRead(SWPINS[i])) {
+      *startChannel += 1;
+    }
+    if (i > 0) {
+      *startChannel <<= 1;
+    }
   }
 }
 
-void loadROM() {
-  EEPROM.get(0, brightness);
-  EEPROM.get(4, lednum);
-  EEPROM.get(8, ledgrp);
-}
+void setup() {
+  Serial.begin(115200);
 
-void dmxSetup() {
   dmx_config_t config = DMX_CONFIG_DEFAULT;
   dmx_personality_t personalities[] = {
     {1, "Default Personality"}
@@ -104,17 +41,35 @@ void dmxSetup() {
   int personality_count = 1;
   dmx_driver_install(dmxPort, &config, personalities, personality_count);
   dmx_set_pin(dmxPort, -1, DMXPIN, -1);
-  loadROM();
-  leds.updateLength(lednum * ledgrp + 1);
+
+  for (int i = 0; i < sizeof(SWPINS); i++) {
+    pinMode(SWPINS[i], INPUT_PULLUP);
+  }
+
+  for (int i = 0; i < sizeof(LEDGRP) / sizeof(LEDGRP[0]); i++) {
+    channelNum += LEDGRP[i][2];
+  }
+  channelMap = (int**)malloc(sizeof(int) * channelNum);
+  int c = 0;
+  for (int i = 0; i < sizeof(LEDGRP) / sizeof(LEDGRP[0]); i++) {
+    for (int j = 0; j < LEDGRP[i][2]; j++) {
+      channelMap[c] = (int*)malloc(sizeof(int) * 2);
+      channelMap[c][0] = LEDGRP[i][0] + LEDGRP[i][1] * j;
+      channelMap[c][1] = LEDGRP[i][0] + LEDGRP[i][1] * (j + 1) - 1;
+      c++;
+    }
+  }
+
   leds.begin();
-  leds.setBrightness(brightness);
+  leds.setBrightness(BRIGHTNESS);
   leds.clear();
   leds.setPixelColor(0, leds.Color(255, 255, 0));
   leds.show();
 }
 
-void dmxLoop() {
-  readSW();
+void loop() {
+  int startChannel;
+  readSW(&startChannel);
   dmx_packet_t packet;
   leds.clear();
   leds.setPixelColor(0, leds.Color(255, 0, 0));
@@ -129,10 +84,13 @@ void dmxLoop() {
         Serial.print(data[i]); Serial.print(" ");
       }
       Serial.println("");
-      for (int g = 0; g < ledgrp; g++) {
-        for (int i = 0; i < lednum; i++) {
-          if (startch + g * 3 + 2 > 512) break;
-          leds.setPixelColor(g * lednum + i + 1, leds.Color(data[startch + g * 3], data[startch + g * 3 + 1], data[startch + g * 3 + 2]));
+
+      for (int c = 0; c < channelNum; c++) {
+        for (int k = channelMap[c][0]; k <= channelMap[c][1]; k++) {
+          if (startChannel + c * 3 + 2 > 512 || k > LEDNUM) break;
+          if (data[startChannel + c * 3] + data[startChannel + c * 3 + 1] + data[startChannel + c * 3 + 2] > 0) {
+            leds.setPixelColor(k, leds.Color(data[startChannel + c * 3], data[startChannel + c * 3 + 1], data[startChannel + c * 3 + 2]));
+          }
         }
       }
     }
@@ -140,93 +98,4 @@ void dmxLoop() {
     ESP.restart();
   }
   leds.show();
-}
-
-void configSetup() {
-  loadROM();
-  leds.begin();
-  leds.setBrightness(brightness);
-  leds.clear();
-  leds.setPixelColor(0, leds.Color(0, 0, 255));
-  leds.show();
-
-  LittleFS.begin(true);
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP("DMX NeoPixel Config");
-
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    loadROM();
-    request->send(LittleFS, "/main.html", "text/html", false, [](const String &var) -> String {
-      if (var == "brightness") {
-        return String(brightness);
-      }
-      if (var == "lednum") {
-        return String(lednum);
-      }
-      if (var == "ledgrp") {
-        return String(ledgrp);
-      }
-      return emptyString;
-    });
-  });
-
-  server.on("/", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (request->hasParam("brightness", true)) {
-      brightness = request->getParam("brightness", true)->value().toInt();
-      EEPROM.put(0, brightness);
-    }
-    if (request->hasParam("lednum", true)) {
-      lednum = request->getParam("lednum", true)->value().toInt();
-      EEPROM.put(4, lednum);
-    }
-    if (request->hasParam("ledgrp", true)) {
-      ledgrp = request->getParam("ledgrp", true)->value().toInt();
-      EEPROM.put(8, ledgrp);
-    }
-    EEPROM.commit();
-    request->send(LittleFS, "/result.html", "text/html", false, [](const String &var) -> String {
-      if (var == "brightness") {
-        return String(brightness);
-      }
-      if (var == "lednum") {
-        return String(lednum);
-      }
-      if (var == "ledgrp") {
-        return String(ledgrp);
-      }
-      return emptyString;
-    });
-  });
-
-  dnsServer.start(53, "*", WiFi.softAPIP());
-  server.addHandler(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER);
-  server.begin();
-}
-
-void configLoop() {
-  dnsServer.processNextRequest();
-}
-
-void setup() {
-  delay(1000);
-  Serial.begin(115200);
-  EEPROM.begin(12);
-  pinMode(MODEPIN, INPUT_PULLUP);
-  if (!digitalRead(MODEPIN)) {
-    Serial.println("config mode");
-    configMode = true;
-  }
-  if (configMode) {
-    configSetup();
-  } else {
-    dmxSetup();
-  }
-}
-
-void loop() {
-  if (configMode) {
-    configLoop();
-  } else {
-    dmxLoop();
-  }
 }
