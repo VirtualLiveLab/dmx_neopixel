@@ -11,7 +11,6 @@
 
 Adafruit_NeoPixel leds(LEDNUM + 1, LEDPIN, NEO_GRB + NEO_KHZ800);
 
-dmx_port_t dmxPort = 1;
 byte data[DMX_PACKET_SIZE];
 
 bool dmxIsConnected = false;
@@ -35,11 +34,11 @@ void setup() {
 
   dmx_config_t config = DMX_CONFIG_DEFAULT;
   dmx_personality_t personalities[] = {
-    {1, "Default Personality"}
+    {3, "RGB"}
   };
   int personality_count = 1;
-  dmx_driver_install(dmxPort, &config, personalities, personality_count);
-  dmx_set_pin(dmxPort, -1, DMXPIN, -1);
+  dmx_driver_install(DMX_NUM_1, &config, personalities, personality_count);
+  dmx_set_pin(DMX_NUM_1, -1, DMXPIN, -1);
 
   for (int i = 0; i < sizeof(SWPINS); i++) {
     pinMode(SWPINS[i], INPUT_PULLUP);
@@ -72,13 +71,13 @@ void loop() {
   dmx_packet_t packet;
   leds.clear();
   leds.setPixelColor(0, leds.Color(255, 0, 0));
-  if (dmx_receive(dmxPort, &packet, DMX_TIMEOUT_TICK)) {
+  if (dmx_receive(DMX_NUM_1, &packet, DMX_TIMEOUT_TICK)) {
     if (!packet.err) {
       if (!dmxIsConnected) {
         dmxIsConnected = true;
       }
       leds.setPixelColor(0, leds.Color(0, 255, 0));
-      dmx_read(dmxPort, data, packet.size);
+      dmx_read(DMX_NUM_1, data, packet.size);
       for (int i = 1; i <= 512; i++) {
         Serial.print(data[i]); Serial.print(" ");
       }
