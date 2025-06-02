@@ -32,7 +32,7 @@ void readSW(int *startChannel) {
 }
 
 void setup() {
-#if DEBUG
+#ifdef DEBUG
   Serial.begin(115200);
 #endif
 
@@ -83,7 +83,7 @@ void loop() {
       leds.setPixelColor(0, leds.Color(0, 255, 0));
       dmx_read(DMX_NUM_1, data, packet.size);
 
-#if DEBUG
+#ifdef DEBUG
       for (int i = 1; i <= 512; i++) {
         Serial.print(data[i]); Serial.print(" ");
       }
