@@ -2,34 +2,24 @@
 #include <esp_dmx.h>
 #include <Adafruit_NeoPixel.h>
 
-#define SWPINS ((uint8_t[10]){10, 9, 8, 7, 6, 5, 4, 3, 2, 11})
-#define LEDPIN 1
-#define DMXPIN 44
-
 #define DEBUG
 #define BRIGHTNESS 10
 #define LEDNUM 30
-#define LEDGRP ((int[][3]){{1, 30, 1}, {1, 3, 10}, {16, 15, 1}})
+#define LEDGRP ((size_t[][3]){{1, 30, 1}, {1, 3, 10}, {16, 15, 1}})
+
+#define LEDPIN 1
+#define DMXPIN 44
+#define SWPINS ((uint8_t[10]){10, 9, 8, 7, 6, 5, 4, 3, 2, 11})
+#define SWPINS_NUM (sizeof(SWPINS) / sizeof(SWPINS[0]))
+#define LEDGRP_NUM (sizeof(LEDGRP) / sizeof(LEDGRP[0]))
 
 Adafruit_NeoPixel leds(LEDNUM + 1, LEDPIN, NEO_GRB + NEO_KHZ800);
 
 byte data[DMX_PACKET_SIZE];
 
 bool dmxIsConnected = false;
-int channelNum;
-int **channelMap;
-
-void readSW(int *startChannel) {
-  *startChannel = 0;
-  for (int i = sizeof(SWPINS) - 1; i >= 0; i--) {
-    if (!digitalRead(SWPINS[i])) {
-      *startChannel += 1;
-    }
-    if (i > 0) {
-      *startChannel <<= 1;
-    }
-  }
-}
+size_t channelNum;
+size_t *channelMap;
 
 void setup() {
 #ifdef DEBUG
@@ -40,24 +30,23 @@ void setup() {
   dmx_personality_t personalities[] = {
     {3, "RGB"}
   };
-  int personality_count = 1;
+  uint8_t personality_count = 1;
   dmx_driver_install(DMX_NUM_1, &config, personalities, personality_count);
   dmx_set_pin(DMX_NUM_1, -1, DMXPIN, -1);
 
-  for (int i = 0; i < sizeof(SWPINS); i++) {
+  for (uint16_t i = 0; i < SWPINS_NUM; i++) {
     pinMode(SWPINS[i], INPUT_PULLUP);
   }
 
-  for (int i = 0; i < sizeof(LEDGRP) / sizeof(LEDGRP[0]); i++) {
+  for (size_t i = 0; i < LEDGRP_NUM; i++) {
     channelNum += LEDGRP[i][2];
   }
-  channelMap = (int**)malloc(sizeof(int) * channelNum);
-  int c = 0;
-  for (int i = 0; i < sizeof(LEDGRP) / sizeof(LEDGRP[0]); i++) {
-    for (int j = 0; j < LEDGRP[i][2]; j++) {
-      channelMap[c] = (int*)malloc(sizeof(int) * 2);
-      channelMap[c][0] = LEDGRP[i][0] + LEDGRP[i][1] * j;
-      channelMap[c][1] = LEDGRP[i][0] + LEDGRP[i][1] * (j + 1) - 1;
+  channelMap = (size_t*)malloc(sizeof(size_t) * channelNum * 2);
+  size_t c = 0;
+  for (size_t i = 0; i < LEDGRP_NUM; i++) {
+    for (size_t j = 0; j < LEDGRP[i][2]; j++) {
+      channelMap[c * 2] = LEDGRP[i][0] + LEDGRP[i][1] * j;
+      channelMap[c * 2 + 1] = LEDGRP[i][0] + LEDGRP[i][1] * (j + 1) - 1;
       c++;
     }
   }
@@ -70,8 +59,11 @@ void setup() {
 }
 
 void loop() {
-  int startChannel;
-  readSW(&startChannel);
+  uint16_t startChannel = 0;
+  for (uint16_t i = 0; i < SWPINS_NUM; i++) {
+    startChannel |= (!digitalRead(SWPINS[i]) << i);
+  }
+
   dmx_packet_t packet;
   leds.clear();
   leds.setPixelColor(0, leds.Color(255, 0, 0));
@@ -84,17 +76,18 @@ void loop() {
       dmx_read(DMX_NUM_1, data, packet.size);
 
 #ifdef DEBUG
-      for (int i = 1; i <= 512; i++) {
+      for (uint16_t i = 1; i <= 512; i++) {
         Serial.print(data[i]); Serial.print(" ");
       }
       Serial.println("");
 #endif
 
-      for (int c = 0; c < channelNum; c++) {
-        for (int k = channelMap[c][0]; k <= channelMap[c][1]; k++) {
-          if (startChannel + c * 3 + 2 > 512 || k > LEDNUM) break;
-          if (data[startChannel + c * 3] + data[startChannel + c * 3 + 1] + data[startChannel + c * 3 + 2] > 0) {
-            leds.setPixelColor(k, leds.Color(data[startChannel + c * 3], data[startChannel + c * 3 + 1], data[startChannel + c * 3 + 2]));
+      for (size_t c = 0; c < channelNum; c++) {
+        for (size_t k = channelMap[c * 2]; k <= channelMap[c * 2 + 1]; k++) {
+          size_t d = startChannel + c * 3;
+          if (d + 2 > 512 || k > LEDNUM) break;
+          if (data[d] + data[d + 1] + data[d + 2] > 0) {
+            leds.setPixelColor(k, leds.Color(data[d], data[d + 1], data[d + 2]));
           }
         }
       }
