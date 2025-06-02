@@ -83,11 +83,13 @@ void loop() {
 #endif
 
       for (size_t c = 0; c < channelNum; c++) {
-        for (size_t k = channelMap[c * 2]; k <= channelMap[c * 2 + 1]; k++) {
-          size_t d = startChannel + c * 3;
-          if (d + 2 > 512 || k > LEDNUM) break;
-          if (data[d] + data[d + 1] + data[d + 2] > 0) {
-            leds.setPixelColor(k, leds.Color(data[d], data[d + 1], data[d + 2]));
+        size_t d = startChannel + c * 3;
+        if (d + 2 > 512) break;
+        uint32_t color = leds.Color(data[d], data[d + 1], data[d + 2]);
+        if (color > 0) {
+          for (size_t k = channelMap[c * 2]; k <= channelMap[c * 2 + 1]; k++) {
+            if (k > LEDNUM) break;
+            leds.setPixelColor(k, color);
           }
         }
       }
