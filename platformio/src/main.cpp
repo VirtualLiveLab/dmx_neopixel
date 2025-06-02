@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <esp_dmx.h>
 #include <Adafruit_NeoPixel.h>
 
@@ -6,9 +7,7 @@
 #define DMXPIN 44
 #define BRIGHTNESS 10
 #define LEDNUM 30
-#define LEDGRP ((int[][3]){{1, 5, 6}, {1, 30, 1}, {16, 15, 1}})
-// channelMap {{1, 5}, {6, 10}, {11, 15}, {16, 20}, {21, 25}, {26, 30}, {1, 30}, {16, 30}}
-//        dmx  |0,1,2  |3,4,5   |6,7,8    |9,10,11  |12,13,14 |15,16,17 |18,19,20|21,22,23 (+ startChannel)
+#define LEDGRP ((int[][3]){{1, 30, 1}, {1, 3, 10}, {16, 15, 1}})
 
 Adafruit_NeoPixel leds(LEDNUM + 1, LEDPIN, NEO_GRB + NEO_KHZ800);
 
