@@ -5,6 +5,8 @@
 #define SWPINS ((uint8_t[10]){10, 9, 8, 7, 6, 5, 4, 3, 2, 11})
 #define LEDPIN 1
 #define DMXPIN 44
+
+#define DEBUG
 #define BRIGHTNESS 10
 #define LEDNUM 30
 #define LEDGRP ((int[][3]){{1, 30, 1}, {1, 3, 10}, {16, 15, 1}})
@@ -30,7 +32,9 @@ void readSW(int *startChannel) {
 }
 
 void setup() {
+#if DEBUG
   Serial.begin(115200);
+#endif
 
   dmx_config_t config = DMX_CONFIG_DEFAULT;
   dmx_personality_t personalities[] = {
@@ -78,10 +82,13 @@ void loop() {
       }
       leds.setPixelColor(0, leds.Color(0, 255, 0));
       dmx_read(DMX_NUM_1, data, packet.size);
+
+#if DEBUG
       for (int i = 1; i <= 512; i++) {
         Serial.print(data[i]); Serial.print(" ");
       }
       Serial.println("");
+#endif
 
       for (int c = 0; c < channelNum; c++) {
         for (int k = channelMap[c][0]; k <= channelMap[c][1]; k++) {
