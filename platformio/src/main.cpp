@@ -10,6 +10,7 @@
 #define LEDPIN 1
 #define DMXPIN 44
 #define SWPINS ((uint8_t[10]){10, 9, 8, 7, 6, 5, 4, 3, 2, 11})
+#define INDICATOR_BRIGHTNESS 10
 #define SWPINS_NUM (sizeof(SWPINS) / sizeof(SWPINS[0]))
 #define LEDGRP_NUM (sizeof(LEDGRP) / sizeof(LEDGRP[0]))
 
@@ -52,9 +53,8 @@ void setup() {
   }
 
   leds.begin();
-  leds.setBrightness(BRIGHTNESS);
   leds.clear();
-  leds.setPixelColor(0, leds.Color(255, 255, 0));
+  leds.setPixelColor(0, leds.Color(INDICATOR_BRIGHTNESS, INDICATOR_BRIGHTNESS, 0));
   leds.show();
 }
 
@@ -66,13 +66,13 @@ void loop() {
 
   dmx_packet_t packet;
   leds.clear();
-  leds.setPixelColor(0, leds.Color(255, 0, 0));
+  leds.setPixelColor(0, leds.Color(INDICATOR_BRIGHTNESS, 0, 0));
   if (dmx_receive(DMX_NUM_1, &packet, DMX_TIMEOUT_TICK)) {
     if (!packet.err) {
       if (!dmxIsConnected) {
         dmxIsConnected = true;
       }
-      leds.setPixelColor(0, leds.Color(0, 255, 0));
+      leds.setPixelColor(0, leds.Color(0, INDICATOR_BRIGHTNESS, 0));
       dmx_read(DMX_NUM_1, data, packet.size);
 
 #ifdef DEBUG
@@ -85,7 +85,7 @@ void loop() {
       for (size_t c = 0; c < channelNum; c++) {
         size_t d = startChannel + c * 3;
         if (d + 2 > 512) break;
-        uint32_t color = leds.Color(data[d], data[d + 1], data[d + 2]);
+        uint32_t color = leds.Color(data[d] * BRIGHTNESS / 255, data[d + 1] * BRIGHTNESS / 255, data[d + 2] * BRIGHTNESS / 255);
         if (color > 0) {
           for (size_t k = channelMap[c * 2]; k <= channelMap[c * 2 + 1]; k++) {
             if (k > LEDNUM) break;
