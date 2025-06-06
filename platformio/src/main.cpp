@@ -7,9 +7,9 @@
 #define LEDNUM 30
 #define LEDGRP ((size_t[][3]){{1, 30, 1}, {1, 3, 10}, {16, 15, 1}})
 
-#define LEDPIN 1
-#define DMXPIN 44
-#define SWPINS ((uint8_t[10]){10, 9, 8, 7, 6, 5, 4, 3, 2, 11})
+#define LEDPIN 8
+#define DMXPIN 20
+#define SWPINS ((uint8_t[10]){0, 1, 2, 3, 4, 5, 6, 7, 10, 21})
 #define INDICATOR_BRIGHTNESS 10
 #define SWPINS_NUM (sizeof(SWPINS) / sizeof(SWPINS[0]))
 #define LEDGRP_NUM (sizeof(LEDGRP) / sizeof(LEDGRP[0]))
