@@ -9,7 +9,7 @@ DMX信号をNeoPixelの信号に変換する基板
 ## ファームウェア書き込み
 ### 環境構築
 - [PlatformIO Core](https://docs.platformio.org/en/latest/core/index.html)をインストール
-[get-platformio.py](https://raw.githubusercontent.com/platformio/platformio-core-installer/master/get-platformio.py)をダウンロードしてPython3で実行
+  - [get-platformio.py](https://raw.githubusercontent.com/platformio/platformio-core-installer/master/get-platformio.py)をダウンロードしてPython3で実行
 - USBで基板をPCに接続
 - 書き込みコマンド実行
 
