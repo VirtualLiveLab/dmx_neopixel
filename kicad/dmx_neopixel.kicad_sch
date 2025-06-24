@@ -7844,7 +7844,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_SMD:SW_SPST_B3U-1000P"
+		(property "Footprint" "Button_Switch_SMD:SW_SPST_PTS810"
 			(at 91.44 102.87 0)
 			(effects
 				(font
