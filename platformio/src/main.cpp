@@ -19,8 +19,9 @@ PacketSerial_<COBS, 0, BUFFSIZE> packetSerial;
 Preferences preferences;
 uint8_t cache[DATASIZE];
 byte dmxData[DMX_PACKET_SIZE];
+SemaphoreHandle_t showSemaphore;
 
-volatile bool restartFlag = false;
+volatile unsigned long retry = 0;
 
 uint8_t validateCRC(const uint8_t* buffer, size_t size) {
   uint8_t tmp[size - 4];
@@ -71,6 +72,18 @@ void onPacketReceived(const uint8_t* buffer, size_t size) {
   packetSerial.send(resBuff, 6);
 }
 
+void showTask(void* pvParameters) {
+  TickType_t lastWake = xTaskGetTickCount();
+  for (;;) {
+    if (xSemaphoreTake(showSemaphore, portMAX_DELAY) == pdTRUE) {
+      if (leds.CanShow()) {
+        leds.Show();
+      }
+    }
+    vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(10));
+  }
+}
+
 void dmxTask(void* pvParameters) {
   bool dmxIsConnected = false;
   for (;;) {
@@ -81,15 +94,16 @@ void dmxTask(void* pvParameters) {
 
     if (dmx_receive(DMX_NUM_1, &packet, DMX_TIMEOUT_TICK)) {
       if (!packet.err) {
+        retry = 0;
         if (!dmxIsConnected) {
           dmxIsConnected = true;
         }
         leds.SetPixelColor(0, RgbColor(0, INDICATOR_BRIGHTNESS, 0));
         dmx_read(DMX_NUM_1, dmxData, packet.size);
 
-        uint8_t brightness = cache[0];
+        float colorScale = cache[0] / 255.0f;
         size_t c = 1;
-        while (c <= 510) {
+        while (c + 2 < packet.size && (4 * (c - 1) + 4) < DATASIZE) {
           uint16_t start = ((uint16_t)cache[4 * (c - 1) + 1] << 8) | ((uint16_t)cache[4 * (c - 1) + 2]);
           uint16_t end = ((uint16_t)cache[4 * (c - 1) + 3] << 8) | ((uint16_t)cache[4 * (c - 1) + 4]);
           if (start * end == 0) {
@@ -103,23 +117,34 @@ void dmxTask(void* pvParameters) {
             end = LEDNUM - 1;
           }
           if (start > end) {
-            uint8_t tmp = start;
-            start = end;
-            end = tmp;
+            start ^= end;
+            end ^= start;
+            start ^= end;
           }
-          RgbColor color(dmxData[c] * brightness / 255, dmxData[c + 1] * brightness / 255, dmxData[c + 2] * brightness / 255);
-          if (color.R + color.G + color.B > 0) {
+          uint8_t r = dmxData[c];
+          uint8_t g = dmxData[c + 1];
+          uint8_t b = dmxData[c + 2];
+          if (r + g + b > 0) {
+            RgbColor color = 
+              // colorGamma.Correct(
+                RgbColor(
+                  (uint8_t)(r * colorScale),
+                  (uint8_t)(g * colorScale),
+                  (uint8_t)(b * colorScale)
+                  // )
+                );
             for (size_t k = start; k <= end; k++) {
-              leds.SetPixelColor(k, colorGamma.Correct(color));
+              leds.SetPixelColor(k, color);
             }
           }
           c += 3;
         }
       }
     } else if (dmxIsConnected) {
-      restartFlag = true;
+      dmxIsConnected = false;
+      retry = millis();
     }
-    leds.Show();
+    xSemaphoreGive(showSemaphore);
     vTaskDelay(pdMS_TO_TICKS(1));
   }
 }
@@ -151,12 +176,14 @@ void setup() {
   leds.SetPixelColor(0, RgbColor(INDICATOR_BRIGHTNESS, INDICATOR_BRIGHTNESS, 0));
   leds.Show();
 
-  xTaskCreate(dmxTask, "DMX Task", 4096, NULL, 1, NULL);
+  showSemaphore = xSemaphoreCreateBinary();
+  xTaskCreate(dmxTask, "DMX Task", 2048, NULL, 1, NULL);
+  xTaskCreate(showTask, "Show Task", 2048, NULL, 1, NULL);
 }
 
 void loop() {
   packetSerial.update();
-  if (restartFlag) {
+  if (retry > 0 && millis() - retry > 1000) {
     ESP.restart();
   }
   delay(1);
