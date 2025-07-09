@@ -14,7 +14,6 @@
 #define INDICATOR_BRIGHTNESS 10
 
 NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod> leds(LEDNUM, LEDPIN);
-NeoGamma<NeoGammaTableMethod> colorGamma;
 PacketSerial_<COBS, 0, BUFFSIZE> packetSerial;
 Preferences preferences;
 uint8_t cache[DATASIZE];
@@ -126,12 +125,10 @@ void dmxTask(void* pvParameters) {
           uint8_t b = dmxData[c + 2];
           if (r + g + b > 0) {
             RgbColor color = 
-              // colorGamma.Correct(
                 RgbColor(
                   (uint8_t)(r * colorScale),
                   (uint8_t)(g * colorScale),
                   (uint8_t)(b * colorScale)
-                  // )
                 );
             for (size_t k = start; k <= end; k++) {
               leds.SetPixelColor(k, color);
