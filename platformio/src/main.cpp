@@ -124,13 +124,12 @@ void dmxTask(void* pvParameters) {
           uint8_t g = dmxData[c + 1];
           uint8_t b = dmxData[c + 2];
           if (r + g + b > 0) {
-            RgbColor color = 
-                RgbColor(
-                  (uint8_t)(r * colorScale),
-                  (uint8_t)(g * colorScale),
-                  (uint8_t)(b * colorScale)
+            RgbColor color(
+                (uint8_t)(r * colorScale),
+                (uint8_t)(g * colorScale),
+                (uint8_t)(b * colorScale)
                 );
-            for (size_t k = start; k <= end; k++) {
+            for (uint16_t k = start; k <= end; k++) {
               leds.SetPixelColor(k, color);
             }
           }
