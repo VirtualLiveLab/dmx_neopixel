@@ -23,13 +23,11 @@ SemaphoreHandle_t showSemaphore;
 volatile unsigned long retry = 0;
 
 uint8_t validateCRC(const uint8_t* buffer, size_t size) {
-  uint8_t tmp[size - 4];
-  memcpy(tmp, buffer, size - 4);
   uint32_t crcInBuff = ((uint32_t)buffer[size - 4] << 24) |
     ((uint32_t)buffer[size - 3] << 16) |
     ((uint32_t)buffer[size - 2] << 8)  |
     ((uint32_t)buffer[size - 1]);
-  uint32_t crc = CRC32::calculate(tmp, size - 4);
+  uint32_t crc = CRC32::calculate(buffer, size - 4);
   if (crcInBuff != crc) return 1;
   return 0;
 }
